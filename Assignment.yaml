@@ -1,0 +1,81 @@
+Parameters:
+  LinuxAMI:
+    Description: The Linux AMI
+    Type: AWS::EC2::Image::Id
+    Default: ami-0fc5d935ebf8bc3bc
+
+  DBName:
+    Description: The database name
+    Type: String
+    Default: assignment_db
+
+  DBUsername:
+    Description: The database username
+    Type: String
+    Default: admin
+
+  DBPassword:
+    Description: The database password
+    Type: String
+    NoEcho: true
+    Default: abcdefgh
+
+  KeyPairName:
+    Description: The EC2 KeyPair to allow SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: MyWSKey2
+
+Resources:
+  MyRDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+
+
+  MyEC2SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security Group for EC2'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt MyRDSSecurityGroup.GroupId
+
+  MyEC2Instance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: MyEC2SecurityGroup
+    Properties:
+      ImageId: !Ref LinuxAMI
+      InstanceType: t2.micro
+      KeyName: !Ref KeyPairName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install -y mysql-client
+      SecurityGroupIds:
+        - !Ref MyEC2SecurityGroup
+
+  MyDBInstance:
+    Type: 'AWS::RDS::DBInstance'
+    DependsOn: MyRDSSecurityGroup
+    Properties:
+      AllocatedStorage: '5'
+      DBInstanceClass: 'db.t2.micro'
+      Engine: 'mysql'
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBName: !Ref DBName
+      VPCSecurityGroups: 
+        - Fn::GetAtt: [ MyRDSSecurityGroup, GroupId ]
+
